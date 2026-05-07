@@ -18,7 +18,7 @@ Read-only: always exits 0 unless invoked incorrectly. Findings are reported
 on stdout so it's safe to pipe into scripts.`,
 		Example: `  omc doctor`,
 		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Println("omc doctor: not yet implemented (milestone M6)")
 			return nil
 		},

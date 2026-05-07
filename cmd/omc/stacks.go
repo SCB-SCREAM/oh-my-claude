@@ -15,7 +15,7 @@ Go, …) along with the components each profile (minimal | recommended |
 full) ships for that stack.`,
 		Example: `  omc stacks`,
 		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Println("omc stacks: not yet implemented (milestone M2)")
 			return nil
 		},

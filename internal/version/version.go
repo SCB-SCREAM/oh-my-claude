@@ -6,6 +6,8 @@ package version
 
 import "fmt"
 
+// Build-time identifiers, populated by goreleaser via -ldflags. In dev builds
+// (go run, go build without ldflags) they keep their default sentinels.
 var (
 	Version = "dev"
 	Commit  = "none"

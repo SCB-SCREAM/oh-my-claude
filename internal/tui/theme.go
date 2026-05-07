@@ -10,14 +10,14 @@ import (
 // NewTheme and pass it down — never reach for package-level styles, since
 // NO_COLOR-aware construction needs to happen at startup.
 type Theme struct {
-	Logo     lipgloss.Style
-	Title    lipgloss.Style
-	Subtle   lipgloss.Style
-	Hint     lipgloss.Style
-	Footer   lipgloss.Style
-	Box      lipgloss.Style
-	Accent   lipgloss.Style
-	NoColor  bool
+	Logo    lipgloss.Style
+	Title   lipgloss.Style
+	Subtle  lipgloss.Style
+	Hint    lipgloss.Style
+	Footer  lipgloss.Style
+	Box     lipgloss.Style
+	Accent  lipgloss.Style
+	NoColor bool
 }
 
 // NewTheme builds the default theme. If NO_COLOR is set (any non-empty value)

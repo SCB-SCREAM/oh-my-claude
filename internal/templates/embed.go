@@ -5,5 +5,8 @@ package templates
 
 import "embed"
 
+// FS is the read-only filesystem of every stack template embedded in the
+// binary at build time. Callers walk it with fs.WalkDir / fs.ReadFile.
+//
 //go:embed all:stacks
 var FS embed.FS

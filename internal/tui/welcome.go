@@ -24,12 +24,16 @@ type WelcomeModel struct {
 	ready         bool
 }
 
+// NewWelcome constructs the welcome screen with the given theme and version
+// string (the latter is rendered under the logo).
 func NewWelcome(theme Theme, version string) WelcomeModel {
 	return WelcomeModel{theme: theme, version: version}
 }
 
+// Init is a no-op: the welcome screen has no startup work.
 func (m WelcomeModel) Init() tea.Cmd { return nil }
 
+// Update handles window resizes and key events for the welcome screen.
 func (m WelcomeModel) Update(msg tea.Msg) (WelcomeModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -48,6 +52,7 @@ func (m WelcomeModel) Update(msg tea.Msg) (WelcomeModel, tea.Cmd) {
 	return m, nil
 }
 
+// View renders the welcome screen as a centered logo + tagline + key hint.
 func (m WelcomeModel) View() tea.View {
 	if !m.ready {
 		v := tea.NewView("")

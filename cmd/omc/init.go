@@ -31,7 +31,7 @@ Detection, profile selection, and apply are delivered in later milestones.`,
   omc init --profile recommended --yes
   omc init --dry-run`,
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			if err := opts.validate(); err != nil {
 				return err
 			}
