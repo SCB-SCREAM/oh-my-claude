@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,10 +17,12 @@ import (
 )
 
 type initOpts struct {
-	profile string
-	yes     bool
-	dryRun  bool
-	noTUI   bool
+	profile    string
+	yes        bool
+	dryRun     bool
+	noTUI      bool
+	llmAugment bool
+	llmNoCache bool
 }
 
 func newInitCmd() *cobra.Command {
@@ -46,7 +49,7 @@ in M5. The TUI flow ships in M4.`,
 				if err != nil {
 					return fmt.Errorf("get working directory: %w", err)
 				}
-				return runInitHeadless(cmd.OutOrStdout(), cwd, opts)
+				return runInitHeadless(cmd.Context(), cmd.OutOrStdout(), cwd, opts)
 			}
 			return tui.Run(version.String())
 		},
@@ -56,6 +59,8 @@ in M5. The TUI flow ships in M4.`,
 	cmd.Flags().BoolVar(&opts.yes, "yes", false, "skip the TUI and apply the chosen profile non-interactively")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "print the plan but don't write anything")
 	cmd.Flags().BoolVar(&opts.noTUI, "no-tui", false, "run without the interactive TUI (CI / piped stdout)")
+	cmd.Flags().BoolVar(&opts.llmAugment, "llm-augment", false, "ask the local `claude` CLI to fill gaps in rule-based detection (uses your existing Claude Code subscription / ANTHROPIC_API_KEY; budget-capped at $0.10 first-run, ~$0.00 cached)")
+	cmd.Flags().BoolVar(&opts.llmNoCache, "llm-no-cache", false, "skip the cached LLM detection result and force a fresh `claude` invocation")
 
 	_ = cmd.RegisterFlagCompletionFunc("profile",
 		func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
@@ -80,7 +85,7 @@ func (o initOpts) validate() error {
 // runInitHeadless is the non-TUI path. M3: walk the cwd, run every
 // detector, and print the resulting signals so users (and CI dry-runs)
 // can see what omc detected before the apply pipeline lands in M5.
-func runInitHeadless(w io.Writer, root string, opts initOpts) error {
+func runInitHeadless(ctx context.Context, w io.Writer, root string, opts initOpts) error {
 	signals, snap, err := detect.Run(os.DirFS(root))
 	if err != nil {
 		return fmt.Errorf("detect: %w", err)
@@ -88,6 +93,16 @@ func runInitHeadless(w io.Writer, root string, opts initOpts) error {
 
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "omc init (headless): profile=%s dry-run=%v\n\n", opts.profile, opts.dryRun)
+
+	if opts.llmAugment {
+		llmSignals := detect.RunViaLLM(ctx, snap, signals, detect.LLMOptions{
+			SkipCache: opts.llmNoCache,
+			Verbose: func(format string, args ...any) {
+				fmt.Fprintf(&buf, "  · "+format+"\n", args...)
+			},
+		})
+		signals = append(signals, llmSignals...)
+	}
 
 	if len(signals) == 0 {
 		fmt.Fprintln(&buf, "no stack signals detected — nothing to apply yet")

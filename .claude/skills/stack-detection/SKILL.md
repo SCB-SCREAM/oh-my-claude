@@ -127,9 +127,21 @@ The single allowed exception is "causally implied" companion signals: `next.js` 
 6. Add table tests in `<file>_test.go`: one positive, one stronger positive (if confidence stacks), one negative.
 7. If the detector needs a new shared primitive on `Snapshot`/`DepIndex`, add it there with its own test — *then* call it from the detector. Don't inline a one-off parser.
 
+## LLM-augmented detection (the optional second path)
+
+omc has a *second* detection path in `internal/detect/llm.go` that shells out to the user's `claude` CLI for stack identification when (a) rule-based detectors return nothing and the user passes `--llm-augment`, or (b) the user explicitly requests it. **This does not change the rules above for rule-based detectors.** Rules are still file-only, sync, no shell-out, no source reading. The LLM path is a separate seam, governed by its own contract:
+
+- It is **not** a `Detector` registered in this package's registry. It runs from the runner *after* rule-based detectors and only fills gaps.
+- LLM-emitted signals carry `Tags: [..., "llm-inferred"]` so the TUI and `omc doctor` can surface "we guessed this" vs "we're sure."
+- LLM signals **cap at `ConfHeuristic` (0.50)** regardless of how confident the model sounds. A rules-based detector at any tier always sorts above an LLM signal with the same name.
+- **Rule wins on collision.** If rules already emitted `Name: "java"` and the LLM also emits `java`, the rules signal stands; the LLM duplicate is discarded entirely (not merged).
+- LLM detection is **always opt-in or fallback**. It must never block, fail the parent run, exceed its budget cap, or pop a permission prompt. See the `claude-subprocess` skill for the full graceful-degradation ladder.
+
+When you're adding a new rule-based detector, you do **not** need to coordinate with the LLM path — rules win, period. When you're touching `internal/detect/llm*.go`, read the `claude-subprocess` skill first.
+
 ## Common pitfalls
 
-- **Don't shell out.** Detection is file-only. No `os/exec`, no `npm`/`pip`/`go list` calls. The user might not have those installed; the user might be on a CI runner with a different lockfile state; running user toolchains is a security boundary we don't cross.
+- **Don't shell out from a rule-based detector.** Detection is file-only at the rule layer. No `os/exec`, no `npm`/`pip`/`go list` calls. The user might not have those installed; the user might be on a CI runner with a different lockfile state; running user toolchains is a security boundary we don't cross. The LLM path in `internal/detect/llm.go` is the only place subprocesses live.
 - **Don't slurp huge files.** `Snapshot.Read` enforces a per-file size cap (1 MiB). If a detector wants to read more, it's the wrong detector.
 - **Don't read user code into memory whole.** A detector inspects manifests and config files, never source. Parsing `*.py` to find `import django` is what `DepIndex` is *for* — the manifest already lists the dep.
 - **Don't depend on absolute paths or `os.Getwd()`.** Detectors take an `fs.FS`. They don't know where on disk it lives. Anything that wants `os.Getwd()` belongs in `cmd/omc/`.
