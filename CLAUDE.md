@@ -29,7 +29,7 @@ testdata/golden/     expected outputs for golden-file tests
 
 ## Where to add things
 
-- **New language/framework detector** → `internal/detect/<name>.go` + fixture under `testdata/fixtures/<name>/`
+- **New language/framework detector** → pick the right category file in `internal/detect/` (`languages.go`, `frameworks.go`, etc.); add fixture under `internal/detect/testdata/fixtures/<scenario>/`. See the `stack-detection` skill.
 - **New stack template** → `internal/templates/<stack>/` (`CLAUDE.md.tmpl`, `settings.json.tmpl`, `hooks/`, `commands/`, `agents/`, `mcp.json`) + sibling `manifest.yaml` declaring `AppliesTo`
 - **New TUI screen** → `internal/tui/<screen>.go` + wire into the root model in `internal/tui/app.go`
 - **New subcommand** → `cmd/omc/<name>.go`; register on root in `main.go`
@@ -41,6 +41,7 @@ testdata/golden/     expected outputs for golden-file tests
 - Detection is **file-only** — never execute user code or shell out to package managers during detection.
 - Generated files include a stamp comment (e.g. `# omc-template: typescript v0.x.y`) so future `omc update` can detect drift.
 - Tests prefer `testing/fstest.MapFS` over `t.TempDir()` for read-only fixtures (faster, hermetic).
+- Detectors never shell out; never read source code; emit evidence as repo-relative slash-separated paths.
 
 ## Skills
 
@@ -52,5 +53,6 @@ testdata/golden/     expected outputs for golden-file tests
 - `go-testing` — table tests, golden files, `fstest.MapFS`, `teatest`
 - `goreleaser-supply-chain` — releases, cosign v3, SBOM, GH Actions
 - `claude-code-config-authoring` — schema for what `omc` *generates*
+- `stack-detection` — detector interface, registry, confidence tiers, FS walk discipline
 
 Skills auto-load when relevant — read them before starting non-trivial work in their domain.

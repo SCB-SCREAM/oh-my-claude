@@ -2,10 +2,10 @@
 # install.sh — install the latest (or pinned) omc release into ~/.local/bin
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/master/install.sh | sh
 #
 # Security-conscious form (recommended):
-#   curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/main/install.sh -o install.sh
+#   curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/master/install.sh -o install.sh
 #   less install.sh   # read it
 #   sh install.sh
 #
