@@ -19,7 +19,7 @@ on stdout so it's safe to pipe into scripts.`,
 		Example: `  omc doctor`,
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			fmt.Println("omc doctor: not yet implemented (milestone M6)")
+			fmt.Println("omc doctor: not yet implemented (milestone M2)")
 			return nil
 		},
 	}

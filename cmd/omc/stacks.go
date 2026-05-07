@@ -16,7 +16,7 @@ full) ships for that stack.`,
 		Example: `  omc stacks`,
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			fmt.Println("omc stacks: not yet implemented (milestone M2)")
+			fmt.Println("omc stacks: not yet implemented (milestone M3)")
 			return nil
 		},
 	}

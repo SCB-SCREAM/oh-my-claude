@@ -54,7 +54,7 @@ snapshot: ## regenerate golden test files
 
 .PHONY: e2e
 e2e: build ## end-to-end: run omc against each fixture
-	@echo "e2e not yet implemented (milestone M3)"
+	@echo "e2e not yet implemented (milestone M4)"
 
 .PHONY: tidy
 tidy: ## go mod tidy
