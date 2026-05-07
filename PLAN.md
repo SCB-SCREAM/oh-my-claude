@@ -7,7 +7,7 @@
 **Why this exists.** Setting up Claude Code well per-stack is the difference between "magic" and "frustrating": a Python project benefits from different permission allowlists, hooks, slash commands, and MCP servers than a Go monorepo. Today, every team rediscovers these conventions. `omc` is "oh-my-zsh for Claude Code": opinionated, batteries-included starting points that detect the stack, let the user pick a profile, and generate `CLAUDE.md`, `.claude/settings.json`, hooks, slash commands, MCP recommendations, and subagent stubs. The intended outcome: a developer runs `omc` in a fresh repo and gets a working, sensible Claude Code setup in under a minute, with everything still hand-editable afterwards.
 
 **Decisions already made (from clarifying Qs):**
-- **Implementation language:** Go, with Bubble Tea + Lip Gloss for the TUI.
+- **Implementation language:** Go, with **Bubble Tea v2** + **Bubbles v2** + **Lip Gloss** for the TUI (v2 is the current major as of 2026; ~30% faster rendering and improved resize handling vs v1).
 - **v1 scope:** Generator **plus** curated per-stack templates (hooks, slash commands, MCP recs, agent stubs) embedded in the binary.
 - **Opinion level:** Ship `minimal | recommended | full` profiles, but every component is a checkbox the user can toggle before applying.
 
@@ -244,6 +244,50 @@ Each template lives in `internal/templates/<stack>/` and is loaded via `//go:emb
 
 ---
 
+## Skills for building omc
+
+Meta-twist: **this repo eats its own dog food**. Before writing any production code, M1 lays down a top-level `CLAUDE.md` and a set of `.claude/skills/*` so anyone (or Claude Code itself) working in this repo gets just-in-time guidance for the Go/Bubble Tea/Cobra/goreleaser stack. These dev-time aids are *not* shipped in the `omc` binary — they're for contributors. The product templates under `internal/templates/<stack>/` are a separate concern.
+
+### `CLAUDE.md` (repo root)
+
+Small, ~50 lines. Acts as a map, not a manual:
+- One paragraph: what `omc` is + link to `PLAN.md` for design.
+- Repo layout cheat-sheet (`cmd/omc`, `internal/...`, `testdata/...`).
+- Common commands (`make lint`, `make test`, `make e2e`, `make snapshot`, `make release-snapshot`).
+- "Where to add things" pointers: new detector → `internal/detect/`, new stack template → `internal/templates/<stack>/ + manifest.yaml`, new TUI screen → `internal/tui/`.
+- Note: "See `.claude/skills/` for stack-specific patterns; they auto-load when relevant."
+
+### Skills (`.claude/skills/<name>/SKILL.md`)
+
+Each is a focused, progressive-disclosure doc with YAML frontmatter (`name`, `description` — third-person, includes *what + when*). Body capped at ~500 lines per skill. Six skills for v1:
+
+1. **`bubble-tea-tui`** — Elm/MVU pattern as applied here: model tree with root-as-router, never block in `Update`/`View` (offload to `tea.Cmd`), store `WindowSizeMsg` dims and propagate to children, `lipgloss.Height/Width` for dynamic layout, `tea.Sequence` for ordered work, when to use pointer vs value receivers, Bubble Tea v2 specifics. Triggers when editing `internal/tui/*` or designing screens.
+
+2. **`go-project-layout`** — Why this repo uses `cmd/<binary>` + `internal/`, when (not) to introduce `pkg/`, package naming and one-concept-per-package rule, internal boundary enforcement. Triggers when adding new packages or moving code between layers.
+
+3. **`cobra-command-design`** — `RunE` not `Run`; persistent flags only for truly global concerns (`--dry-run`, `--no-tui`, `--yes`, `--profile`, `--config`); validate args/flags before doing work; populate `Example:` with copy-pasteable lines; auto-generated shell completions for `bash|zsh|fish|powershell`. Triggers when editing `cmd/omc/*` or adding subcommands.
+
+4. **`go-testing`** — Table-driven test idiom, `testdata/` convention, golden files with a `-update` flag, `testing/fstest.MapFS` for synthetic project fixtures, `t.TempDir()` for write-path tests, `go test -fuzz` for `settings_merge.go`, `teatest` for TUI frame snapshots. Triggers when writing `*_test.go` files or designing test fixtures.
+
+5. **`goreleaser-supply-chain`** — `.goreleaser.yaml` shape (builds matrix, archives, brews, scoops, sboms, signs), cosign v3 keyless signing with `--bundle`, SBOM via `syft`, GitHub Actions release workflow with `id-token: write` + `contents: write`, snapshot mode for CI. Triggers when editing `.goreleaser.yaml` or release/CI workflows.
+
+6. **`claude-code-config-authoring`** — The schema of what `omc` *generates*: `settings.json` shape (`permissions.allow`/`deny` arrays of Bash patterns, `hooks` keyed by event name, `env`, `model`), hook event names (`PreToolUse`, `PostToolUse`, `Notification`, `Stop`, etc.), slash command file format (`.claude/commands/<name>.md` with frontmatter), subagent file format (`.claude/agents/<name>.md`), `.mcp.json` shape. Triggers when editing `internal/templates/*` or designing template output. **This is the highest-leverage skill** — getting the generated schema wrong breaks every install.
+
+### Workflow (per user instruction)
+
+1. M1 first creates `CLAUDE.md` and the six skills above.
+2. User reloads Claude Code so the skills are picked up.
+3. *Then* M1 implementation proper begins (Cobra skeleton, Bubble Tea welcome screen, embed scaffold, CI, goreleaser snapshot).
+
+### What we are *not* adding to `.claude/` (yet)
+
+- No hooks in `.claude/settings.json` for v1 — the contributor experience shouldn't enforce side-effects.
+- No custom slash commands beyond what skills provide.
+- No `.mcp.json` — revisit if a Postgres/SQLite-backed feature lands.
+- No subagents — Claude Code's defaults plus the skills above are sufficient for early development.
+
+---
+
 ## CI / testing pipeline (for this repo)
 
 A dedicated GitHub Actions setup, in place from M1 so every PR is gated.
@@ -301,7 +345,7 @@ On `main`: require `lint`, `test (ubuntu-latest)`, `test (macos-latest)`, `test 
 
 | Milestone | Deliverable |
 |---|---|
-| **M1 — Skeleton** | `cmd/omc/main.go` (Cobra), `--version`, basic Bubble Tea welcome screen, `internal/templates/embed.go` scaffold, goreleaser dry-run config, CI (lint+test). |
+| **M1 — Skeleton** | `cmd/omc/main.go` (Cobra w/ `RunE`), `--version`, basic Bubble Tea v2 welcome screen, `internal/templates/embed.go` scaffold, goreleaser snapshot config, CI (lint+test), **plus repo-level Claude Code dev context**: top-level `CLAUDE.md` + `.claude/skills/*` (see "Dev-time Claude Code context" section below). |
 | **M2 — Detection** | `internal/detect/` with TS/Python/Go detectors + monorepo + CI + Docker. Fixture tests. `omc stacks` command. |
 | **M3 — TUI core** | Scan, profile, components, preview, apply screens wired up. `--no-tui` headless path. |
 | **M4 — Apply pipeline** | `apply/writer.go` with backup + dry-run, `apply/differ.go`, `apply/settings_merge.go` with deep-merge logic + tests. |
@@ -325,14 +369,15 @@ On `main`: require `lint`, `test (ubuntu-latest)`, `test (macos-latest)`, `test 
 
 ## Existing utilities worth reusing
 
-- **Bubble Tea** (`github.com/charmbracelet/bubbletea`) — TUI runtime.
-- **Bubbles** (`github.com/charmbracelet/bubbles`) — list, viewport, spinner, textinput.
-- **Lip Gloss** (`github.com/charmbracelet/lipgloss`) — styles.
-- **Cobra** (`github.com/spf13/cobra`) — CLI scaffolding.
+- **Bubble Tea v2** (`github.com/charmbracelet/bubbletea/v2`) — TUI runtime. Pin v2 — v1 still gets cited online but v2 is current.
+- **Bubbles v2** (`github.com/charmbracelet/bubbles/v2`) — list, viewport, spinner, textinput, table.
+- **Lip Gloss** (`github.com/charmbracelet/lipgloss`) — styles, height/width helpers for dynamic layout.
+- **Cobra** (`github.com/spf13/cobra`) — CLI scaffolding. Use `RunE` (not `Run`) for proper error returns; auto-gen shell completions.
 - **go-diff** (`github.com/sergi/go-diff/diffmatchpatch`) — unified diffs for preview pane.
 - **doublestar** (`github.com/bmatcuk/doublestar/v4`) — glob matching for detector evidence.
-- **teatest** (`github.com/charmbracelet/x/exp/teatest`) — TUI snapshot tests.
-- **goreleaser** — release pipeline.
+- **teatest** (`github.com/charmbracelet/x/exp/teatest`) — TUI snapshot tests (note: `x/exp` so API is unstable; pin and audit on bumps).
+- **`testing/fstest.MapFS`** (stdlib) — synthetic project trees for detector tests; no temp-file overhead.
+- **goreleaser v2** + **cosign v3** — release pipeline. Use cosign's `--bundle` mode (single `.sigstore.json`) and keyless OIDC signing via GitHub Actions (`id-token: write`); SBOM via `syft`.
 
 (All standard, no need to reinvent any of the above.)
 

@@ -1,1 +1,12 @@
 .idea
+.claude/settings.local.json
+
+# Go build artifacts
+/bin/
+/dist/
+coverage.out
+coverage.html
+
+# OS / editor cruft
+.DS_Store
+*.swp
