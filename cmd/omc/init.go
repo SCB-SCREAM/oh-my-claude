@@ -26,7 +26,7 @@ func newInitCmd() *cobra.Command {
 CLAUDE.md, .claude/settings.json, hooks, slash commands, and subagent stubs.
 
 In M1 only the welcome screen is wired up; pressing [enter] exits cleanly.
-Detection, profile selection, and apply are delivered in later milestones.`,
+Detection, TUI flow, and apply land in M3-M5.`,
 		Example: `  omc init
   omc init --profile recommended --yes
   omc init --dry-run`,
@@ -70,6 +70,6 @@ func (o initOpts) validate() error {
 // runInitHeadless is the non-TUI path. M1 stub: prints what it *would* do.
 func runInitHeadless(opts initOpts) error {
 	fmt.Printf("omc init (headless): profile=%s dry-run=%v\n", opts.profile, opts.dryRun)
-	fmt.Println("detection + apply not yet implemented (milestones M2-M4)")
+	fmt.Println("detection + apply not yet implemented (milestones M3-M5)")
 	return nil
 }

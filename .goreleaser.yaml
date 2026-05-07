@@ -64,18 +64,24 @@ signs:
       - "${artifact}"
     output: true
 
-brews:
-  - repository:
+homebrew_casks:
+  - name: omc
+    binary: omc
+    repository:
       owner: SCB-SCREAM
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/SCB-SCREAM/oh-my-claude"
     description: "Bootstrap Claude Code for your project, opinionated by stack"
     license: MIT
-    install: |
-      bin.install "omc"
-    test: |
-      system "#{bin}/omc", "--version"
+    # Cask binaries on macOS get quarantined by Gatekeeper; clear the xattr
+    # on install so users don't have to right-click → open the first time.
+    hooks:
+      post:
+        install: |
+          if OS.mac? && Hardware::CPU.arm?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/omc"]
+          end
 
 scoops:
   - repository:

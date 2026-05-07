@@ -16,4 +16,4 @@ stacks/<stack>/
   mcp.json              # suggestion fragment (commented in by user)
 ```
 
-Templates are populated in milestone M5; M1 only ships the embed scaffold.
+Templates are populated in milestone M6; M1 only ships the embed scaffold.
