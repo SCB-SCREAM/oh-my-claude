@@ -36,7 +36,14 @@ Pick the option that matches your environment. Every path lands the same signed 
 go install github.com/SCB-SCREAM/oh-my-claude/cmd/omc@latest
 ```
 
-The headline path while we're pre-1.0. Needs Go 1.25+. The binary lands in `$(go env GOPATH)/bin` — make sure that's on your `$PATH`.
+The headline path while we're pre-1.0. If `omc` isn't found after installing, add Go's bin directory to your shell `$PATH`:
+
+```bash
+echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.bashrc   # or ~/.zshrc
+exec $SHELL
+```
+
+<sub>Requires Go 1.25+.</sub>
 
 </td>
 <td width="50%" valign="top">
