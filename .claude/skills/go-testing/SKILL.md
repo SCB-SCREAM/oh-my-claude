@@ -122,6 +122,19 @@ got := detect.Run(os.DirFS("testdata/fixtures/ts-next"))
 
 Use `fstest.MapFS` for one-off small cases inside the test file; use disk fixtures when the input is large or shared across many tests.
 
+## Detector fixtures specifically
+
+`internal/detect/testdata/fixtures/<scenario>/` projects must look like the real thing — but no bigger than necessary. Rules:
+
+- **Name by scenario, not stack.** Prefer `ts-next-pnpm`, `py-django-uv`, `monorepo-mixed` over generic `typescript`. The name should hint at every signal you expect.
+- **Empty-but-present files are fine** for presence-only checks: an empty `pnpm-lock.yaml` or `go.sum` is still a definitive lockfile. Don't generate realistic content if the detector doesn't read it.
+- **Real content for content-readers.** `package.json` and `pyproject.toml` must contain valid, parseable structures with the deps the detectors care about. Use minimal but real `dependencies` blocks.
+- **Two assertion patterns:**
+  - *Per-detector unit tests*: `fstest.MapFS` inline. Faster and the test file shows the exact input.
+  - *Aggregate `Run()` tests*: real fixture on disk via `os.DirFS`. Assert on a **set** of expected signal IDs (`mustContainSignals(t, got, "next.js", "pnpm", "typescript")`), not full deep equality — keeps tests robust to confidence tier tweaks.
+- **Don't add a fixture per detector.** A fixture covers many detectors at once. ~5 fixtures cover all 38 launch detectors — `ts-next-pnpm`, `py-django-uv`, `go-cli`, `monorepo-mixed`, `infra-only`.
+- **Evidence is part of the assertion.** When asserting deep equality on a signal, include `Evidence`. A signal with the right name and the wrong evidence is a regression; the TUI relies on evidence being accurate.
+
 ## Golden files
 
 When the system produces a multi-line text output (rendered template, full plan diff, formatted table), don't hard-code expected strings. Use a golden file.
@@ -221,3 +234,4 @@ Don't chase a coverage number for its own sake. A 70% suite of meaningful tests 
 - Don't share mutable fixtures across subtests. Each subtest builds its own (cheap with `MapFS`).
 - Don't compare large strings with `==`; use `cmp.Diff` so the failure message shows the diff.
 - Don't put fixtures outside `testdata/`. The Go toolchain only ignores that exact directory name.
+- Don't fuzz the detection runner; fuzz `DepIndex` parsers (the JSON/TOML surface that takes user input).

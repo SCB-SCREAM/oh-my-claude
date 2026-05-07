@@ -168,7 +168,7 @@ _ = cmd.RegisterFlagCompletionFunc("profile",
 - **TUI vs no-TUI**: `init` defaults to TUI. If `--yes` is set or stdout is not a TTY (`!isatty.IsTerminal(os.Stdout.Fd())`), require `--profile` and run headless.
 - **Dry-run**: `--dry-run` builds a plan, prints it, returns. No file writes anywhere.
 - **`omc doctor`**: read-only diagnostic. Always exits 0 unless invoked incorrectly; "found problems" is communicated through stdout, not exit code, so users can run it in scripts.
-- **`omc stacks`**: prints a table — use `text/tabwriter` for alignment.
+- **`omc stacks`**: prints a table — use `text/tabwriter` for alignment. Provide `--json` for scripting; honor `NO_COLOR` (no ANSI in `stacks` output).
 - **`omc --version`**: handled by a `--version` persistent flag on root, populated from `internal/version`. Don't write a separate `version` subcommand unless we have a reason.
 
 ## Don't

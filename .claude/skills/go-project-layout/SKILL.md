@@ -70,6 +70,7 @@ A package is a cohesive unit of meaning, not a folder of utilities. Concrete tes
 - One file per cohesive type or per subcommand: `internal/detect/typescript.go`, `internal/detect/python.go`, `cmd/omc/init.go`.
 - Tests next to source: `typescript.go` ↔ `typescript_test.go`.
 - Cross-cutting interface/registry lives in a file named after the package (`detect/detector.go`) or `<package>.go`.
+- `internal/detect/` deviates slightly: detector functions group by *category*, not by single concept (e.g. `frameworks.go` holds Next/Vite/Express/NestJS). This is intentional — each detector is ~10 lines, and one-file-per-detector would explode the directory. The category is the cohesive unit. See the `stack-detection` skill.
 
 ### Dependency direction
 
