@@ -26,44 +26,72 @@
 
 Pick the option that matches your environment. Every path lands the same signed binary; cosign + SHA256 verification is automatic on `install.sh`.
 
-<table>
-<tr>
-<td width="50%" valign="top">
+| Method | Platforms | One-liner |
+|---|---|---|
+| **`go install`** *(recommended for now)* | any | `go install github.com/SCB-SCREAM/oh-my-claude/cmd/omc@latest` |
+| **`install.sh`** | Linux, macOS | `curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/master/install.sh \| sh` |
+| **Homebrew** | macOS, Linux | `brew install SCB-SCREAM/tap/omc` |
+| **Scoop** | Windows | `scoop bucket add scb https://github.com/SCB-SCREAM/scoop-bucket && scoop install omc` |
+| **Direct download** | any | grab the archive from [Releases](https://github.com/SCB-SCREAM/oh-my-claude/releases) |
 
-### Go (recommended for now)
+Verify any of them:
+
+```text
+$ omc --version
+omc v0.1.0 (commit abc1234, built 2026-05-07T09:00:00Z)
+```
+
+---
+
+### `go install` (recommended for now)
+
+The headline path while we're pre-1.0 — works for anyone who already has a Go toolchain. Full setup, including putting Go's bin directory on your `$PATH`:
 
 ```bash
+# 1. Install
 go install github.com/SCB-SCREAM/oh-my-claude/cmd/omc@latest
+
+# 2. One-time: make sure Go's bin dir is on your $PATH (skip if already there).
+#    Pick the line for your shell.
+echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.bashrc   # bash
+echo 'export PATH="$(go env GOPATH)/bin:$PATH"' >> ~/.zshrc    # zsh
+fish_add_path "$(go env GOPATH)/bin"                           # fish
+
+# 3. Reload the shell, then verify
+exec "$SHELL"
+omc --version
 ```
 
-The headline path while we're pre-1.0. Needs Go 1.25+. The binary lands in `$(go env GOPATH)/bin` — make sure that's on your `$PATH`.
+<sub>Requires Go 1.25+.</sub>
 
-</td>
-<td width="50%" valign="top">
+---
 
-### One-line script (Linux / macOS)
+### `install.sh` (Linux / macOS)
+
+Auto-detects OS/arch, fetches the latest release, verifies SHA256 against the published checksums, installs to `~/.local/bin`.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/master/install.sh | sh
 ```
 
-Auto-detects OS/arch, fetches the latest release, verifies SHA256, installs to `~/.local/bin`. Override with `OMC_VERSION=v0.1.0` or `OMC_INSTALL_DIR=…`.
+Override the version or destination:
+
+```bash
+OMC_VERSION=v0.1.0 OMC_INSTALL_DIR=/usr/local/bin curl -fsSL …/install.sh | sh
+```
 
 <details>
-<summary>Security-conscious form</summary>
+<summary>Security-conscious form (download then inspect)</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/SCB-SCREAM/oh-my-claude/master/install.sh -o install.sh
 less install.sh
 sh install.sh
 ```
 
 </details>
 
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
+---
 
 ### Homebrew (macOS / Linux)
 
@@ -71,10 +99,9 @@ sh install.sh
 brew install SCB-SCREAM/tap/omc
 ```
 
-Tap is auto-published from each tagged release. `brew upgrade` keeps you current.
+The tap is auto-published from each tagged release. `brew upgrade` keeps you current.
 
-</td>
-<td width="50%" valign="top">
+---
 
 ### Scoop (Windows)
 
@@ -83,10 +110,7 @@ scoop bucket add scb https://github.com/SCB-SCREAM/scoop-bucket
 scoop install omc
 ```
 
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
+---
 
 ### Direct download
 
@@ -103,17 +127,6 @@ cosign verify-blob \
 
 sha256sum -c --ignore-missing checksums.txt
 tar -xzf omc_*_linux_amd64.tar.gz
-```
-
-</td>
-</tr>
-</table>
-
-Verify the install:
-
-```text
-$ omc --version
-omc v0.1.0 (commit abc1234, built 2026-05-07T09:00:00Z)
 ```
 
 ---
