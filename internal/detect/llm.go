@@ -86,7 +86,7 @@ func RunViaLLM(ctx context.Context, snap *Snapshot, existing []Signal, opts LLMO
 		return nil
 	}
 	if mode == claudeModeUnauthenticated {
-		opts.Verbose("skipping LLM augmentation: claude not authenticated (run `claude auth login` or set ANTHROPIC_API_KEY)")
+		opts.Verbose("skipping LLM augmentation: claude not authenticated against a subscription (run `claude auth login`)")
 		return nil
 	}
 
@@ -99,7 +99,7 @@ func RunViaLLM(ctx context.Context, snap *Snapshot, existing []Signal, opts LLMO
 		}
 	}
 
-	resp, err := callClaude(ctx, opts, mode, listing)
+	resp, err := callClaude(ctx, opts, listing)
 	if err != nil {
 		opts.Verbose("skipping LLM augmentation: %v", err)
 		return nil
@@ -307,13 +307,18 @@ func writeCache(dir, key string, signals []Signal) {
 
 // ── auth detection ──────────────────────────────────────────────────────
 
+// claudeMode tracks whether `claude` is available and the user is
+// authenticated against their Claude Code subscription. We deliberately
+// do NOT support ANTHROPIC_API_KEY fallback — the whole pitch of this
+// path is "use the user's existing subscription, never make per-call
+// billed API requests on their behalf." If the subscription auth isn't
+// available, we degrade.
 type claudeMode int
 
 const (
 	claudeModeUnavailable claudeMode = iota
 	claudeModeUnauthenticated
 	claudeModeSubscription
-	claudeModeAPIKey
 )
 
 func detectClaudeMode(ctx context.Context, opts LLMOptions) claudeMode {
@@ -324,9 +329,6 @@ func detectClaudeMode(ctx context.Context, opts LLMOptions) claudeMode {
 	// `claude auth status` exits 0 iff a subscription session is active.
 	if _, err := opts.Runner.Run(ctx, []string{"auth", "status"}, nil); err == nil {
 		return claudeModeSubscription
-	}
-	if os.Getenv("ANTHROPIC_API_KEY") != "" {
-		return claudeModeAPIKey
 	}
 	return claudeModeUnauthenticated
 }
@@ -370,9 +372,15 @@ type claudeResult struct {
 	StopReason       string          `json:"stop_reason"`
 }
 
-func callClaude(parent context.Context, opts LLMOptions, mode claudeMode, listing []string) (string, error) {
+func callClaude(parent context.Context, opts LLMOptions, listing []string) (string, error) {
 	prompt := buildPrompt(listing)
 
+	// We deliberately do NOT pass `--bare` — `--bare` strictly uses
+	// ANTHROPIC_API_KEY (per-call billing), which contradicts the
+	// "subscription only" guarantee. To still avoid CLAUDE.md /
+	// .claude/settings.json auto-discovery from the target project
+	// (which would bias detection), the runner sets cwd to a neutral
+	// directory before exec. See [realRunner].
 	args := []string{
 		"-p",
 		"--output-format", "json",
@@ -383,12 +391,6 @@ func callClaude(parent context.Context, opts LLMOptions, mode claudeMode, listin
 		"--max-budget-usd", fmt.Sprintf("%.4f", opts.BudgetUSD),
 		"--no-session-persistence",
 		prompt,
-	}
-	// `--bare` strictly uses ANTHROPIC_API_KEY/apiKeyHelper. Use it only
-	// for API-key users; subscription users need OAuth, which --bare
-	// disables.
-	if mode == claudeModeAPIKey {
-		args = append([]string{"--bare"}, args...)
 	}
 
 	ctx, cancel := context.WithTimeout(parent, opts.Timeout)

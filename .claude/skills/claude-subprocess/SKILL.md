@@ -1,33 +1,38 @@
 ---
 name: claude-subprocess
-description: Patterns for invoking the `claude` CLI as a subprocess from omc — the canonical safe-invocation flag set (`--bare --tools "" --json-schema --max-budget-usd`), the verified JSON output schema (`{type, is_error, subtype, result, total_cost_usd, ...}`), auth detection via `claude auth status`, graceful degradation when not on PATH or unauthenticated, cost discipline (Haiku-only, hard budget caps, file-listing-only prompts, cache by sha256 of inputs), and prompt-injection mitigations through schema-enforced output. Use this whenever editing `internal/detect/llm*.go`, `internal/detect/claude*.go`, or anywhere we exec the `claude` binary. Apply also when changing the LLM augmentation flag wiring in `cmd/omc/`.
+description: Patterns for invoking the `claude` CLI as a subprocess from omc — the canonical safe-invocation flag set (`--tools "" --json-schema --max-budget-usd --no-session-persistence` from a neutral cwd), the verified JSON output schema (`{type, is_error, subtype, result, structured_output, total_cost_usd, ...}`), subscription-only auth gate via `claude auth status`, graceful degradation when not on PATH or unauthenticated, cost discipline (Haiku-only, hard budget caps, file-listing-only prompts, cache by sha256 of inputs), and prompt-injection mitigations through schema-enforced output. Use this whenever editing `internal/detect/llm*.go`, `internal/detect/runner.go`, or anywhere we exec the `claude` binary. Apply also when changing the LLM augmentation flag wiring in `cmd/omc/`.
 ---
 
 # Invoking Claude Code as a subprocess
 
 omc uses `claude -p` — Claude Code's non-interactive mode — to do LLM-augmented stack detection: when file-rule detectors come up empty (or when the user opts in with `--llm-augment`), we shell out to the user's already-installed, already-authenticated `claude` binary. **This is not the same as making Anthropic API calls.** We never see the user's API key; we never bill them per call from our side; we lean on their existing Claude Code subscription auth.
 
+**Subscription-only contract.** omc deliberately does *not* fall back to `ANTHROPIC_API_KEY` when subscription auth isn't available. The whole pitch of this path is "use what the user already pays for, never make per-call billed API requests on their behalf." If `claude auth status` returns non-zero, we degrade to zero LLM signals — even if `ANTHROPIC_API_KEY` happens to be set in the environment. Don't reintroduce the fallback "to be helpful": a user with a subscription who also has an API key set for unrelated work would be silently billed every time their OAuth hiccupped. That violates the contract.
+
 That distinction shapes every rule below.
 
 ## The canonical safe invocation
 
 ```
-claude --bare \
+cd /tmp && claude \
   -p \
   --output-format json \
   --json-schema '<schema>' \
   --tools "" \
   --model haiku \
   --effort low \
-  --max-budget-usd 0.02 \
-  --no-session-persistence
+  --max-budget-usd 0.10 \
+  --no-session-persistence \
+  '<prompt>'
 ```
 
-Every flag is load-bearing. Drop one, get a footgun:
+Note **what's NOT here**: `--bare`. `--bare` looks tempting because it skips CLAUDE.md / settings.json auto-discovery, but it *requires* `ANTHROPIC_API_KEY` (OAuth and keychain are explicitly disabled in bare mode). Using `--bare` would mean "use the user's API key for per-call billing if they have one set," which contradicts the subscription-only contract. We get the same auto-discovery suppression by simply running from a **neutral cwd** (e.g. `os.TempDir()`) so there's no project-level `CLAUDE.md` or `.claude/settings.json` to discover.
+
+Every other flag is load-bearing. Drop one, get a footgun:
 
 | Flag | Why required |
 |---|---|
-| `--bare` | Skips CLAUDE.md auto-discovery, hooks, plugin sync, auto-memory. Without it, `claude` will *read the target project's CLAUDE.md* and bias the inference ("ready to help with your oh-my-claude project!"). It also disables OAuth/keychain reads — `--bare` requires `ANTHROPIC_API_KEY` or `apiKeyHelper`, which is **not** what we want for users on Claude subscriptions. So we conditionally drop `--bare` if `claude auth status` indicates a logged-in subscription user. See "Auth detection" below. |
+| `cmd.Dir = os.TempDir()` (not a CLI flag, but the equivalent runner setting) | Prevents `claude` from auto-loading the target project's `CLAUDE.md`, `.claude/settings.json`, hooks, or plugin config into the inference context. Without it, scanning `oh-my-claude` itself biases the answer ("ready to help with your oh-my-claude project!"). User-level config (`~/.claude/settings.json`, user CLAUDE.md) still loads, which is fine — those represent the user's deliberate context, and `--tools ""` prevents anything in them from acting on the target project. |
 | `-p` (`--print`) | Non-interactive. One prompt → one response → exit. |
 | `--output-format json` | Single result object. The `text` default is unparseable; `stream-json` requires `--verbose` and adds NDJSON parsing complexity we don't need. |
 | `--json-schema '<schema>'` | Claude validates output against the schema *before returning*. **This is the determinism guarantee** — without it, parsing free-form text turns every prompt-injection attempt into a real bug. With it, the worst case is "the model returns no signals," not "the model returns shell commands." |
@@ -64,30 +69,35 @@ Don't trust `is_error == false` alone; also check `subtype == "success"`. CLI ex
 
 **Also load-bearing: tell the model "Output ONLY a JSON object matching the schema. No prose, no markdown." in the user prompt.** Without that instruction, Haiku returns prose in `result` and leaves `structured_output` empty *even though `--json-schema` is set* — and it burns ~3× the tokens doing it. Schema enforcement is a hint to the model, not a hard guarantee, unless the user prompt aligns.
 
-## Auth detection: subscription vs API key
+## Auth detection: subscription only
 
-Two valid auth modes for omc users:
+There is exactly one valid auth mode for omc:
 
-1. **Subscription user (Pro/Max).** Already `claude auth login`'d. `claude auth status` exits `0`. We invoke *without* `--bare` (because `--bare` strictly uses `ANTHROPIC_API_KEY`/`apiKeyHelper` and ignores OAuth). The trade-off: without `--bare` we get CLAUDE.md auto-discovery from cwd. To avoid that, we run from a **neutral cwd** (e.g., `os.UserCacheDir()/omc/llm-detect/`) and pass `--add-dir` *only* if we want to scope tool access, which we don't (we have `--tools ""`). Don't pass any `--add-dir` — Claude has no tools and shouldn't need filesystem access.
-2. **API-key user.** `ANTHROPIC_API_KEY` set in env. `claude auth status` exits non-zero (no OAuth) but the call still works because the SDK falls back to the env var. We can use `--bare` here for the cleanest isolation.
+- **Subscription user (Pro/Max).** Already `claude auth login`'d. `claude auth status` exits `0`. We invoke without `--bare` so OAuth works.
+
+If `claude auth status` returns non-zero, we degrade — even if `ANTHROPIC_API_KEY` is set in the environment. **Do not "helpfully" fall back to API-key mode.** That would silently bill the user per call from omc, contradicting the subscription-only contract and creating a footgun: a subscription user with an API key set for unrelated work would get billed every time their OAuth hiccupped.
 
 ```go
-// Detect mode once and cache for the process lifetime.
-func detectClaudeMode(ctx context.Context) (mode claudeMode, err error) {
-    if _, err := exec.LookPath("claude"); err != nil {
-        return modeUnavailable, err
+type claudeMode int
+
+const (
+    claudeModeUnavailable claudeMode = iota
+    claudeModeUnauthenticated
+    claudeModeSubscription
+)
+
+func detectClaudeMode(ctx context.Context, runner Runner) claudeMode {
+    if out, err := runner.Run(ctx, []string{"--version"}, nil); err != nil || len(out) == 0 {
+        return claudeModeUnavailable
     }
-    if exec.CommandContext(ctx, "claude", "auth", "status").Run() == nil {
-        return modeSubscription, nil
+    if _, err := runner.Run(ctx, []string{"auth", "status"}, nil); err == nil {
+        return claudeModeSubscription
     }
-    if os.Getenv("ANTHROPIC_API_KEY") != "" {
-        return modeAPIKey, nil
-    }
-    return modeUnauthenticated, nil
+    return claudeModeUnauthenticated
 }
 ```
 
-`modeUnavailable` and `modeUnauthenticated` are not errors that should propagate to the user as failures — they should produce a friendly "skipping LLM augmentation: claude not installed / not logged in" line and let the file-rule signals stand.
+`claudeModeUnavailable` and `claudeModeUnauthenticated` are not errors that should propagate to the user as failures — they should produce a friendly "skipping LLM augmentation: claude not installed / not authenticated against a subscription (run `claude auth login`)" line and let the file-rule signals stand.
 
 ## Graceful degradation — never a hard failure
 

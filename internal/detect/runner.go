@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 )
 
@@ -27,6 +28,13 @@ type realRunner struct{}
 
 func (realRunner) Run(ctx context.Context, args []string, stdin []byte) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "claude", args...) //#nosec G204 -- args are constructed from a fixed flag set; no user input
+	// Neutral cwd: prevents `claude` from auto-loading the target
+	// project's CLAUDE.md / .claude/settings.json into the inference
+	// context, which would bias detection ("ready to help with your
+	// oh-my-claude project!"). We can't use --bare for this because
+	// --bare disables OAuth and forces ANTHROPIC_API_KEY billing,
+	// which contradicts the subscription-only guarantee.
+	cmd.Dir = os.TempDir()
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}

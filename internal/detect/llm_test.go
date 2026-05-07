@@ -176,9 +176,9 @@ func TestRunViaLLM_GracefulDegradation(t *testing.T) {
 			"claude` not on PATH",
 		},
 		{
-			"claude not authenticated",
+			"claude not authenticated against subscription",
 			&fakeRunner{versionOK: true},
-			"claude not authenticated",
+			"not authenticated against a subscription",
 		},
 		{
 			"subprocess error",
@@ -320,33 +320,53 @@ func TestRunViaLLM_CacheTTLExpiry(t *testing.T) {
 	}
 }
 
-func TestRunViaLLM_BareOnlyForAPIKeyMode(t *testing.T) {
-	// Cannot t.Parallel — subtests use t.Setenv.
+// TestRunViaLLM_NeverPassesBare locks in the subscription-only contract:
+// `--bare` is never present in any subprocess invocation, because --bare
+// strictly uses ANTHROPIC_API_KEY (per-call billing). Even with the env
+// var set, we must never fall back to API-key mode.
+func TestRunViaLLM_NeverPassesBare(t *testing.T) {
+	// Cannot t.Parallel — uses t.Setenv.
+	t.Setenv("ANTHROPIC_API_KEY", "sk-test-should-be-ignored")
 
 	snap, _ := NewSnapshot(fstest.MapFS{"go.mod": &fstest.MapFile{Data: []byte("module x\n")}})
 
-	t.Run("subscription mode does not pass --bare", func(t *testing.T) {
+	t.Run("subscription user", func(t *testing.T) {
 		runner := &fakeRunner{
 			versionOK: true,
 			authOK:    true,
 			response:  makeFakeSuccess(`{"signals":[]}`),
 		}
 		_ = RunViaLLM(context.Background(), snap, nil, LLMOptions{Runner: runner, CacheDir: t.TempDir()})
-		if got := firstArgOfPrintCall(runner.calls); got == "--bare" {
-			t.Errorf("subscription mode: --bare must not be the first arg")
+		for _, c := range runner.calls {
+			for _, a := range c.args {
+				if a == "--bare" {
+					t.Fatalf("--bare leaked into subprocess args: %v", c.args)
+				}
+			}
 		}
 	})
 
-	t.Run("api-key mode passes --bare first", func(t *testing.T) {
-		t.Setenv("ANTHROPIC_API_KEY", "sk-test")
+	t.Run("subscription auth fails -> degrade, do not fall back to API key", func(t *testing.T) {
 		runner := &fakeRunner{
 			versionOK: true,
-			authOK:    false, // forces fallthrough to API-key mode
-			response:  makeFakeSuccess(`{"signals":[]}`),
+			authOK:    false, // subscription unavailable
+			response:  makeFakeSuccess(`{"signals":[{"name":"java","category":"language","evidence":["x"]}]}`),
 		}
-		_ = RunViaLLM(context.Background(), snap, nil, LLMOptions{Runner: runner, CacheDir: t.TempDir()})
-		if got := firstArgOfPrintCall(runner.calls); got != "--bare" {
-			t.Errorf("api-key mode: want --bare first, got %q (calls: %+v)", got, runner.calls)
+		var logs strings.Builder
+		got := RunViaLLM(context.Background(), snap, nil, LLMOptions{
+			Runner:   runner,
+			CacheDir: t.TempDir(),
+			Verbose:  func(f string, a ...any) { fmt.Fprintf(&logs, f+"\n", a...) },
+		})
+		if len(got) != 0 {
+			t.Errorf("ANTHROPIC_API_KEY set but no subscription: want zero signals, got %+v", got)
+		}
+		if !strings.Contains(logs.String(), "subscription") {
+			t.Errorf("want degradation log mentioning subscription, got %q", logs.String())
+		}
+		// The -p subprocess should NEVER have been invoked.
+		if n := countSubprocessCalls(runner.calls); n != 0 {
+			t.Errorf("expected 0 subprocess calls, got %d (would have billed via API key)", n)
 		}
 	})
 }
@@ -386,16 +406,4 @@ func countSubprocessCalls(calls []fakeCall) int {
 		}
 	}
 	return n
-}
-
-func firstArgOfPrintCall(calls []fakeCall) string {
-	for _, c := range calls {
-		if len(c.args) == 0 {
-			continue
-		}
-		if c.args[0] == "-p" || c.args[0] == "--bare" {
-			return c.args[0]
-		}
-	}
-	return ""
 }

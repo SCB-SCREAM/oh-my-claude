@@ -59,7 +59,7 @@ in M5. The TUI flow ships in M4.`,
 	cmd.Flags().BoolVar(&opts.yes, "yes", false, "skip the TUI and apply the chosen profile non-interactively")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "print the plan but don't write anything")
 	cmd.Flags().BoolVar(&opts.noTUI, "no-tui", false, "run without the interactive TUI (CI / piped stdout)")
-	cmd.Flags().BoolVar(&opts.llmAugment, "llm-augment", false, "ask the local `claude` CLI to fill gaps in rule-based detection (uses your existing Claude Code subscription / ANTHROPIC_API_KEY; budget-capped at $0.10 first-run, ~$0.00 cached)")
+	cmd.Flags().BoolVar(&opts.llmAugment, "llm-augment", false, "ask the local `claude` CLI to fill gaps in rule-based detection (subscription only — never falls back to ANTHROPIC_API_KEY; budget-capped at $0.10 first-run, ~$0.00 cached)")
 	cmd.Flags().BoolVar(&opts.llmNoCache, "llm-no-cache", false, "skip the cached LLM detection result and force a fresh `claude` invocation")
 
 	_ = cmd.RegisterFlagCompletionFunc("profile",
