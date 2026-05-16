@@ -111,6 +111,48 @@ func (m appModel) View() tea.View {
 
 Have **children return their concrete model type** from `Update` (`func (m WelcomeModel) Update(msg tea.Msg) (WelcomeModel, tea.Cmd)`), not `tea.Model`. This avoids the type-assertion dance the v1 docs needed (and the `updateAs` helper they recommended). Only the **root** model has to satisfy the `tea.Model` interface for `tea.NewProgram`.
 
+## Shared session state across screens
+
+When data flows screen-to-screen (signals → profile → components → plan), the natural temptation is to thread every datum through a message on every transition. Don't. Stash the running picture on a `*sessionState` pointer field on `appModel`:
+
+```go
+type sessionState struct {
+    RepoRoot string
+    Signals  []detect.Signal
+    Profile  profile.Name
+    Selected map[component.ID]bool
+    Plan     *apply.Plan
+    Results  []apply.WriteResult
+}
+
+type appModel struct {
+    state   *sessionState
+    current screenID
+    welcome WelcomeModel
+    scan    ScanModel
+    // …
+}
+```
+
+The pointer lets `appModel` be copied by value (preserving the MVU contract) while every screen reads from / commits into the same struct. Rules:
+
+1. **Only `Update` mutates `state`.** Never write to it from inside a `tea.Cmd`.
+2. **Children emit decision messages** (`profileChosenMsg{...}`, `componentsCommittedMsg{Selected: ...}`) rather than poking root state directly. Root copies the decision into `state` and then emits `switchScreenMsg`.
+3. **Children take their slice of state via constructor injection** (e.g. `m.profile = m.profile.WithSignals(state.Signals)` right before the screen becomes active). Tests can instantiate a single screen in isolation without a full root.
+
+## Screen transitions via switchScreenMsg
+
+Use one universal transition message instead of mutating `root.current` from a child:
+
+```go
+type switchScreenMsg struct{ To screenID }
+func switchTo(s screenID) tea.Cmd { return func() tea.Msg { return switchScreenMsg{To: s} } }
+```
+
+The root handles `switchScreenMsg`, sets `current`, and may fire a follow-up `tea.Cmd` that produces the new screen's data (e.g. switching to `componentsScreen` fires `resolveComponentsCmd(state.Profile, state.Signals)`). Children stay agnostic of the screen enum and never call into a sibling.
+
+**Cross-screen `tea.Cmd`s live at the root**, not in the destination screen's `Init`. The root has all of `sessionState` to read from; the child often doesn't yet. Storing the cmd-builders as `func` fields on `appModel` (defaulting to the real `session.*` implementations) gives tests a seam to inject fakes that synthesize the result message instantly.
+
 ## Command discipline
 
 Anything that takes time — file IO, network, sleep, computing a diff over many files — runs in a `tea.Cmd`, **not** inside `Update`. A `tea.Cmd` is just `func() tea.Msg`; it runs in its own goroutine and the result lands as a message on the next loop tick.
@@ -176,6 +218,31 @@ Bubble Tea's contract is: `Update` returns a *new* model. Use **value receivers*
 - Use `lipgloss.Place` to center.
 - Use `lipgloss.JoinVertical` / `JoinHorizontal` to compose.
 - Theme lives in `internal/tui/theme.go` — respect `NO_COLOR` (`lipgloss.SetColorProfile(termenv.Ascii)` when env says so).
+
+## Multi-pane layouts (preview-style)
+
+`lipgloss.JoinHorizontal` composes panes. Compute pane widths from `m.width` at render time — never store derived widths on the model:
+
+```go
+leftW  := m.width * 38 / 100
+rightW := m.width - leftW - 2
+left   := lipgloss.NewStyle().Width(leftW).Render(fileListView)
+right  := lipgloss.NewStyle().Width(rightW).Render(viewport.View())
+return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+```
+
+The right pane is usually a `bubbles/v2/viewport.Model` so long content scrolls. Forward unmatched key events to the viewport via `m.vp, cmd = m.vp.Update(msg)` so `pgup/pgdn/u/d` work without you handling them by name. Don't render scrollbars by hand.
+
+## Key matching
+
+Bubble Tea v2's `KeyPressMsg.String()` returns the **canonical key name**, not the literal rune that arrived. A real terminal sends:
+
+- `tea.KeyEnter` → `"enter"`. Tests must construct `tea.KeyPressMsg{Code: tea.KeyEnter}` with no `Text` field (`Text: "\n"` would override the canonical name back to `"\n"`).
+- `tea.KeySpace` → `"space"`. So `case " ":` will never fire — use `case "space":`.
+- Printable runes → themselves (`"q"`, `"a"`).
+- Ctrl combinations → `"ctrl+c"`, `"ctrl+n"`.
+
+When in doubt, log `msg.String()` to confirm what the runtime hands you.
 
 ## Bubble Tea v2 vs v1
 

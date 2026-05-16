@@ -135,16 +135,22 @@ tar -xzf omc_*_linux_amd64.tar.gz
 
 ```bash
 cd ~/your-project
-omc init        # interactive TUI
+omc init        # interactive TUI: welcome → scan → profile → components → preview → apply → done
 omc doctor      # read-only diagnostic of the current setup
+omc stacks      # list every detector + its triggers
 ```
 
 Non-interactive (CI / scripted bootstraps):
 
 ```bash
 omc init --no-tui --yes --profile recommended
-omc init --dry-run --profile minimal      # preview the plan, don't write
+omc init --no-tui --yes --profile minimal --components claude-md,settings  # allowlist subset
+omc init --dry-run --profile minimal                                       # preview only
 ```
+
+Pipe-aware: when stdout isn't a TTY (e.g. `omc init | cat`), `omc init` auto-flips to `--no-tui` and requires `--profile`.
+
+> **v0.3.0 note**: M4 wires every screen end-to-end but the apply step is a preview-only stub — *no files are written to disk yet*. The real writer ships in M5 (`v0.4.0`); fully-fleshed templates ship in M6 (`v1.0.0`). Run it today to feel the flow; come back for `omc upgrade && omc init` once M5 lands.
 
 ---
 
@@ -168,9 +174,9 @@ We ship the install path before the product, so every later milestone is just `b
 | | Milestone | Status |
 |---|---|---|
 | **M1** | Skeleton — Cobra CLI, Bubble Tea v2 welcome screen, embed scaffold, CI, dev-time skills | done |
-| **M2** | Local install + ship `v0.1.0` — `omc doctor`, install.sh, Homebrew tap, Scoop bucket, cosign-signed releases | in progress |
-| **M3** | Detection — TS/Python/Go detectors, monorepo + Docker + CI signals, `omc stacks` | planned |
-| **M4** | TUI core — scan / profile / components / preview / apply screens | planned |
+| **M2** | Local install + ship `v0.1.0` — `omc doctor`, install.sh, Homebrew tap, Scoop bucket, cosign-signed releases | done |
+| **M3** | Detection — TS/Python/Go detectors, monorepo + Docker + CI signals, `omc stacks` | done |
+| **M4** | TUI core — scan / profile / components / preview / apply screens + `--no-tui` headless path | done (`v0.3.0`) |
 | **M5** | Apply pipeline — backup, dry-run, `settings.json` deep-merge, unified diff | planned |
 | **M6** | Templates — fully-fleshed launch stacks, golden-file tests, `v1.0.0` | planned |
 

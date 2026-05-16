@@ -202,20 +202,56 @@ func FuzzSettingsMerge(f *testing.F) {
 
 Run locally with `go test -fuzz=FuzzSettingsMerge -fuzztime=30s ./internal/apply`. Don't run fuzz in regular CI (separate scheduled job, longer fuzztime).
 
-## TUI snapshot tests with `teatest`
+## TUI tests
 
-`teatest` (from `github.com/charmbracelet/x/exp/teatest`) drives a Bubble Tea program with scripted input and snapshots the rendered frames.
+Two layers, picked by what you're verifying:
+
+### Direct `Update` / `View` tests (most cases)
+
+For per-screen behavior (cursor moves, toggles, emitted decision messages), call the screen's `Update` directly. Screens return concrete types, so no teatest plumbing is needed:
 
 ```go
-func TestWelcomeScreen(t *testing.T) {
-	tm := teatest.NewTestModel(t, tui.NewWelcome(),
-		teatest.WithInitialTermSize(80, 24))
-	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
-	teatest.RequireEqualOutput(t, tm.FinalOutput(t))
+func TestProfile_EnterEmitsChoice(t *testing.T) {
+    m := tui.NewProfile(tui.NewTheme()).WithSignals(...)
+    m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+    _, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+    msg := cmd().(profileChosenMsg)
+    if msg.Profile != "recommended" { t.Errorf(...) }
 }
 ```
 
-Run with `-update` to regenerate the golden output. `teatest` lives under `x/exp` so its API is unstable — pin the version, audit on bumps, and isolate it to `internal/tui/*_test.go`. Don't try to use it for non-TUI code.
+To inspect rendered content, call `m.View().Content` — that's a plain string.
+
+### `teatest` for whole-program / quit-on-q smoke tests
+
+Use `teatest` for the few things `Update`/`View` can't easily check: that the program actually exits, that `tea.NewProgram` plumbs everything together, that the welcome → done path runs without panic. Pass the **root** model — child screens don't satisfy `tea.Model` (they return concrete types from `Update`).
+
+```go
+func TestRootQuitsOnQ(t *testing.T) {
+    tm := teatest.NewTestModel(t, tui.New(tui.Options{Version: "test"}),
+        teatest.WithInitialTermSize(120, 30))
+    tm.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+    tm.WaitFinished(t, teatest.WithFinalTimeout(2*time.Second))
+}
+```
+
+Module path is **`github.com/charmbracelet/x/exp/teatest/v2`** for Bubble Tea v2 — the v1 path will compile but pulls in v1 and silently breaks. Pin the version and audit on bumps; isolate to `internal/tui/*_test.go`.
+
+### Seams for injecting fakes
+
+Screens that fire `tea.Cmd`s wrapping `internal/session` calls take the cmd-builder as a function field on `appModel` defaulting to the real impl:
+
+```go
+type appModel struct {
+    ...
+    detectCmd    func(string) tea.Cmd
+    resolveCmd   func(profile.Name, []detect.Signal) tea.Cmd
+    buildPlanCmd func(string, []component.Component, map[component.ID]bool, map[string]bool) tea.Cmd
+    applyCmd     func(*apply.Plan, time.Duration) tea.Cmd
+}
+```
+
+Tests construct the model with fakes that synthesize a `catalogReadyMsg` / `planReadyMsg` / etc. instantly. This avoids running the real `detect.Run` against the test runner's cwd and keeps teatest hermetic.
 
 ## Coverage
 

@@ -165,7 +165,7 @@ _ = cmd.RegisterFlagCompletionFunc("profile",
 
 ## Common patterns specific to omc
 
-- **TUI vs no-TUI**: `init` defaults to TUI. If `--yes` is set or stdout is not a TTY (`!isatty.IsTerminal(os.Stdout.Fd())`), require `--profile` and run headless.
+- **TUI vs no-TUI**: `init` defaults to TUI. Auto-flip to headless when stdout is not a TTY (`!isatty.IsTerminal(os.Stdout.Fd())`); if no `--profile` was given in that case, return an explicit error. Both paths route through `internal/session` (`session.Run` for headless, the discrete `session.Detect` / `session.ResolveAndMaterialize` / `session.BuildPlan` / `session.Execute` steps for the TUI) — never duplicate the detect→resolve→materialize→plan→execute steps between Cobra and Bubble Tea.
 - **Dry-run**: `--dry-run` builds a plan, prints it, returns. No file writes anywhere.
 - **`omc doctor`**: read-only diagnostic. Always exits 0 unless invoked incorrectly; "found problems" is communicated through stdout, not exit code, so users can run it in scripts.
 - **`omc stacks`**: prints a table — use `text/tabwriter` for alignment. Provide `--json` for scripting; honor `NO_COLOR` (no ANSI in `stacks` output).

@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"strings"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -14,12 +12,12 @@ import (
 func newStacksCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stacks",
-		Short: "List supported stacks and what triggers each detector",
-		Long: `stacks prints every detector omc ships, grouped by category
-(language, package-manager, framework, infra, ci, monorepo, …) along with
-the file patterns that trigger them and the confidence range each can
-emit. Useful for answering "would omc detect my project?" without
-running ` + "`omc init`" + `.`,
+		Short: "List the project Types omc can classify into",
+		Long: `stacks prints every project [Type] the LLM-backed detector is
+constrained to choose from. Detection itself is open-ended — claude
+classifies your project from its file paths and emits a structured
+Stack — but the Type field is a closed enum so downstream components
+gate on a small, predictable set.`,
 		Example: `  omc stacks`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -29,35 +27,37 @@ running ` + "`omc init`" + `.`,
 }
 
 func runStacks(w io.Writer) error {
-	groups := detect.GroupedCatalog()
-	if len(groups) == 0 {
-		_, err := fmt.Fprintln(w, "no detectors registered")
+	if _, err := fmt.Fprintln(w, "Project Types omc classifies into:"); err != nil {
 		return err
 	}
-
-	for i, g := range groups {
-		if i > 0 {
-			if _, err := fmt.Fprintln(w); err != nil {
-				return err
-			}
-		}
-		if _, err := fmt.Fprintf(w, "%s\n", strings.ToUpper(g.Tag)); err != nil {
-			return err
-		}
-		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		for _, e := range g.Entries {
-			conf := fmt.Sprintf("%.2f-%.2f", e.MinConf, e.MaxConf)
-			if e.MinConf == e.MaxConf {
-				conf = fmt.Sprintf("%.2f", e.MinConf)
-			}
-			triggers := strings.Join(e.Triggers, ", ")
-			if _, err := fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", e.ID, conf, triggers, e.Summary); err != nil {
-				return err
-			}
-		}
-		if err := tw.Flush(); err != nil {
+	for _, t := range detect.AllTypes() {
+		if _, err := fmt.Fprintf(w, "  %-10s %s\n", t, typeBlurb(t)); err != nil {
 			return err
 		}
 	}
+	if _, err := fmt.Fprintln(w, "\nThe LLM picks one of the above when you run `omc init`."); err != nil {
+		return err
+	}
 	return nil
+}
+
+// typeBlurb is a one-line explanation of when each Type applies. Used
+// only for human-facing CLI help; downstream gating works off the Type
+// enum directly, not these strings.
+func typeBlurb(t detect.Type) string {
+	switch t {
+	case detect.TypeWebApp:
+		return "UI-serving applications (frontend or full-stack)"
+	case detect.TypeAPI:
+		return "HTTP/gRPC services with no UI"
+	case detect.TypeCLI:
+		return "binary-producing command-line tools"
+	case detect.TypeLibrary:
+		return "published as a dependency; no main entry point"
+	case detect.TypeInfra:
+		return "infrastructure-as-code / declarative ops"
+	case detect.TypeMonorepo:
+		return "multi-package workspaces"
+	}
+	return ""
 }
