@@ -44,9 +44,7 @@ func (m WelcomeModel) Update(msg tea.Msg) (WelcomeModel, tea.Cmd) {
 		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
 		case "enter":
-			// M1: no scan screen yet — exit cleanly so the user lands back
-			// in the shell rather than getting stuck.
-			return m, tea.Quit
+			return m, switchTo(scanScreen)
 		}
 	}
 	return m, nil

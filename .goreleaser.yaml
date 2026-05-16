@@ -46,10 +46,8 @@ checksum:
   algorithm: sha256
 
 sboms:
-  - id: bin-sboms
-    artifacts: binary
-    documents:
-      - "{{ .ArtifactName }}.spdx.json"
+  - id: archive-sboms
+    artifacts: archive
 
 signs:
   - id: cosign-checksums

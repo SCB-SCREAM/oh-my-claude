@@ -42,6 +42,7 @@ func Run(repoRoot string) []Finding {
 	checks := []func(string) Finding{
 		checkGitRepo,
 		checkClaudeCLI,
+		checkClaudeAuth,
 		checkSettingsLocalGitignored,
 		checkClaudeDir,
 	}
@@ -74,11 +75,43 @@ func checkClaudeCLI(_ string) Finding {
 			Message:  "claude CLI found at " + path,
 		}
 	}
+	// claude is a HARD dependency for omc — detection is LLM-backed, so
+	// without claude on $PATH `omc init` cannot do its primary job.
 	return Finding{
 		Name:     "claude-cli-on-path",
-		Severity: SeverityWarn,
+		Severity: SeverityError,
 		Message:  "claude CLI not found on $PATH",
-		Hint:     "install from https://docs.claude.com/en/docs/claude-code; omc generates configs but doesn't run claude itself",
+		Hint:     "install from https://docs.claude.com/en/docs/claude-code; omc requires claude for project detection",
+	}
+}
+
+// checkClaudeAuth runs `claude auth status` to verify the user has an
+// active subscription session. omc deliberately does not fall back to
+// ANTHROPIC_API_KEY (would bill per call), so unauthenticated is a hard
+// error: `omc init` will refuse to run.
+func checkClaudeAuth(_ string) Finding {
+	if _, err := exec.LookPath("claude"); err != nil {
+		// Already covered by checkClaudeCLI; skip to avoid duplicate noise.
+		return Finding{
+			Name:     "claude-authenticated",
+			Severity: SeverityInfo,
+			Message:  "skipped (claude CLI not installed)",
+		}
+	}
+	// #nosec G204 -- fixed args, no user input
+	cmd := exec.Command("claude", "auth", "status")
+	if err := cmd.Run(); err != nil {
+		return Finding{
+			Name:     "claude-authenticated",
+			Severity: SeverityError,
+			Message:  "claude is installed but no active subscription session",
+			Hint:     "run `claude auth login` (omc never falls back to ANTHROPIC_API_KEY billing)",
+		}
+	}
+	return Finding{
+		Name:     "claude-authenticated",
+		Severity: SeverityOK,
+		Message:  "claude subscription session is active",
 	}
 }
 

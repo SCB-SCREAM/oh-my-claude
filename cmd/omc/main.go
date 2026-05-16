@@ -15,6 +15,12 @@ import (
 	"github.com/SCB-SCREAM/oh-my-claude/internal/version"
 )
 
+// rootOpts holds flags shared by every subcommand. Today only --no-color
+// lives here; more will accrete as the binary grows.
+type rootOpts struct {
+	noColor bool
+}
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -26,6 +32,8 @@ func main() {
 }
 
 func newRootCmd() *cobra.Command {
+	var opts rootOpts
+
 	root := &cobra.Command{
 		Use:   "omc",
 		Short: "Bootstrap Claude Code for your project, opinionated by stack",
@@ -35,7 +43,14 @@ hooks, slash commands, subagent stubs, MCP suggestions).`,
 		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: false,
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			if opts.noColor {
+				_ = os.Setenv("NO_COLOR", "1")
+			}
+		},
 	}
+
+	root.PersistentFlags().BoolVar(&opts.noColor, "no-color", false, "disable ANSI colour output (same as NO_COLOR=1)")
 
 	// Make `--version` print just the version string (default Cobra format
 	// includes the binary name, which is fine but verbose).

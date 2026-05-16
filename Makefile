@@ -53,8 +53,8 @@ snapshot: ## regenerate golden test files
 	$(GO) test -update ./...
 
 .PHONY: e2e
-e2e: build ## end-to-end: run omc against each fixture
-	@echo "e2e not yet implemented (milestone M4)"
+e2e: ## end-to-end: drive `omc init --no-tui` against synthetic fixtures
+	$(GO) test -tags=e2e -race ./cmd/omc/...
 
 .PHONY: tidy
 tidy: ## go mod tidy

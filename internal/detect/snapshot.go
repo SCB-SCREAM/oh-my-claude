@@ -7,7 +7,6 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"sync"
 )
 
 // fileCap bounds the number of files a [Snapshot] indexes. Hitting it sets
@@ -26,6 +25,7 @@ const readCap = 1 << 20 // 1 MiB
 // complexity than v0.2.0 needs, and these cover the bulk of "ignore me".
 var skipDirs = map[string]struct{}{
 	".git":          {},
+	".claude":       {}, // omc's own output — detection must not see its cache or settings
 	"node_modules":  {},
 	"vendor":        {},
 	"dist":          {},
@@ -73,12 +73,8 @@ type Snapshot struct {
 
 	// Truncated is true if the walk hit [fileCap] before exhausting the
 	// tree. Surfaced to the user so they understand why a deep monorepo
-	// might be missing a signal.
+	// might be missing a file from the LLM's input listing.
 	Truncated bool
-
-	depsOnce sync.Once
-	deps     *DepIndex
-	depsErr  error
 }
 
 // NewSnapshot walks fsys (rooted at the repo root), respecting
@@ -217,7 +213,7 @@ func (s *Snapshot) Glob(pattern string) []string {
 }
 
 // Read returns the contents of repo-relative path p, capped at [readCap].
-// Detectors should treat the returned slice as read-only.
+// Callers should treat the returned slice as read-only.
 func (s *Snapshot) Read(p string) ([]byte, error) {
 	f, err := s.FS.Open(p)
 	if err != nil {
@@ -225,25 +221,4 @@ func (s *Snapshot) Read(p string) ([]byte, error) {
 	}
 	defer func() { _ = f.Close() }()
 	return io.ReadAll(io.LimitReader(f, readCap))
-}
-
-// Deps returns the lazily-built [DepIndex]. The first call parses every
-// known manifest in the snapshot; subsequent calls reuse the result.
-// Detectors normally go through [Snapshot.HasDep] instead.
-func (s *Snapshot) Deps() *DepIndex {
-	s.depsOnce.Do(func() {
-		s.deps, s.depsErr = buildDepIndex(s)
-	})
-	return s.deps
-}
-
-// HasDep reports whether the given dependency was declared in any manifest
-// of the given ecosystem ("npm", "python", "go"). The returned version is
-// the raw constraint string (e.g. "^14.0.0", ">=4.2,<5", "v1.21.0").
-func (s *Snapshot) HasDep(ecosystem, name string) (string, bool) {
-	idx := s.Deps()
-	if idx == nil {
-		return "", false
-	}
-	return idx.Lookup(ecosystem, name)
 }
