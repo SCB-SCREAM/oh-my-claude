@@ -2,24 +2,72 @@ name: release
 
 on:
   push:
+    branches: [master]
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
-  contents: write    # create the GitHub Release
+  contents: write    # create the GitHub Release + push tags
   id-token: write    # OIDC token for cosign keyless signing
   packages: write    # for OCI artifacts (future)
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  goreleaser:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # goreleaser reads full git history for the changelog
+
+      - name: Determine release tag
+        id: tag
+        env:
+          BUMP_INPUT: ${{ github.event.inputs.bump }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            echo "Using pushed tag: ${tag}"
+          else
+            bump="${BUMP_INPUT:-patch}"
+            latest=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+            latest="${latest:-v0.0.0}"
+            IFS=. read -r major minor patch <<<"${latest#v}"
+            case "${bump}" in
+              major) major=$((major+1)); minor=0; patch=0 ;;
+              minor) minor=$((minor+1)); patch=0 ;;
+              patch) patch=$((patch+1)) ;;
+              *) echo "unknown bump type: ${bump}" >&2; exit 1 ;;
+            esac
+            tag="v${major}.${minor}.${patch}"
+            echo "Bumping ${latest} -> ${tag} (${bump})"
+            git config user.name  'github-actions[bot]'
+            git config user.email 'github-actions[bot]@users.noreply.github.com'
+            git tag -a "${tag}" -m "Release ${tag}"
+            git push origin "${tag}"
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout tag
+        run: git checkout "${{ steps.tag.outputs.tag }}"
 
       - uses: actions/setup-go@v5
         with:
