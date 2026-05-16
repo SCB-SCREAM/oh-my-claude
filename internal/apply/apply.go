@@ -25,6 +25,8 @@ import (
 // Action describes what apply.Execute would do to the target path.
 type Action int
 
+// Possible Action values for a planned write. Strings() returns short
+// tags used in the preview screen and the headless plan report.
 const (
 	ActionCreate    Action = iota // file does not exist
 	ActionOverwrite               // file exists; component.Conflict says overwrite

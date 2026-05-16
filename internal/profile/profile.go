@@ -14,6 +14,8 @@ import "errors"
 // below rather than free-form strings.
 type Name string
 
+// The three canonical profile names. Use these typed constants rather
+// than free-form strings — Validate / IDs reject anything else.
 const (
 	Minimal     Name = "minimal"
 	Recommended Name = "recommended"

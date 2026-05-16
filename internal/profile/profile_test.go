@@ -75,11 +75,11 @@ func TestIDs_Monotonic(t *testing.T) {
 	// Each successive profile should be a superset of the previous one
 	// (minimal ⊆ recommended ⊆ full). This is a stable invariant the
 	// components screen and the docs both rely on.
-	min, _ := IDs(Minimal)
+	minIDs, _ := IDs(Minimal)
 	rec, _ := IDs(Recommended)
 	full, _ := IDs(Full)
 
-	assertSubset(t, "minimal ⊆ recommended", min, rec)
+	assertSubset(t, "minimal ⊆ recommended", minIDs, rec)
 	assertSubset(t, "recommended ⊆ full", rec, full)
 }
 

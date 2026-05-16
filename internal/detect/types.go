@@ -13,6 +13,9 @@ import "time"
 //     new Type is a deliberate code change, not a silent surprise.
 type Type string
 
+// The six canonical project Types — the closed enum the LLM must
+// classify into. Adding a new Type requires updates in three places:
+// here, the `enum` in stackSchema (stack.go), and AllTypes().
 const (
 	TypeWebApp   Type = "webapp"
 	TypeAPI      Type = "api"

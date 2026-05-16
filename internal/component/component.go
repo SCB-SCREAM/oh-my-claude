@@ -33,6 +33,8 @@ type ID string
 // Category groups components in the TUI checklist and in --help.
 type Category string
 
+// Canonical category values used by registered components. The TUI's
+// components screen groups under these headings in declaration order.
 const (
 	CategoryClaudeMD  Category = "CLAUDE.md"
 	CategorySettings  Category = "Settings"
@@ -47,6 +49,8 @@ const (
 // and enforced by apply.Execute.
 type ConflictPolicy int
 
+// Conflict-handling policies a Component declares for its target files.
+// apply.BuildPlan maps these onto Action values.
 const (
 	ConflictSkipIfExists ConflictPolicy = iota
 	ConflictMerge

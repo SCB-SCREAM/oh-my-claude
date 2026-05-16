@@ -40,6 +40,9 @@ type componentRow struct {
 	selected bool
 }
 
+// NewComponents constructs a fresh ComponentsModel with an empty
+// selection map. The catalog is populated lazily via catalogReadyMsg
+// from the root's resolveCmd.
 func NewComponents(theme Theme) ComponentsModel {
 	return ComponentsModel{
 		theme:    theme,
@@ -56,8 +59,12 @@ func (m ComponentsModel) WithSelection(sel map[component.ID]bool) ComponentsMode
 	return m
 }
 
+// Init implements [tea.Model]. The screen waits for catalogReadyMsg
+// before doing anything meaningful, so there is no work to schedule.
 func (m ComponentsModel) Init() tea.Cmd { return nil }
 
+// Update implements [tea.Model] — handles the catalog load,
+// cursor/checkbox key bindings, and the [enter] → preview transition.
 func (m ComponentsModel) Update(msg tea.Msg) (ComponentsModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -110,6 +117,8 @@ func (m ComponentsModel) Update(msg tea.Msg) (ComponentsModel, tea.Cmd) {
 	return m, nil
 }
 
+// View implements [tea.Model] — left pane is the checklist; the right
+// pane (toggled with [i]) shows the highlighted component's description.
 func (m ComponentsModel) View() tea.View {
 	header := m.theme.Title.Render("omc — components") + " " + m.theme.Subtle.Render("(pick what to install)")
 

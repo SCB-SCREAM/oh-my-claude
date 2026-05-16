@@ -24,6 +24,9 @@ type ProfileModel struct {
 	cursor  int
 }
 
+// NewProfile constructs a fresh ProfileModel preloaded with the
+// canonical profile list. The detected Stack is supplied later via
+// WithStack so the "would install" hint can pre-compute.
 func NewProfile(theme Theme) ProfileModel {
 	return ProfileModel{theme: theme, choices: profile.All()}
 }
@@ -37,8 +40,12 @@ func (m ProfileModel) WithStack(stack detect.Stack) ProfileModel {
 	return m
 }
 
+// Init implements [tea.Model] — the profile screen is purely keyboard-
+// driven, so it has no startup work to schedule.
 func (m ProfileModel) Init() tea.Cmd { return nil }
 
+// Update implements [tea.Model] — j/k or 1/2/3 to move the cursor,
+// enter/space to commit the highlighted profile.
 func (m ProfileModel) Update(msg tea.Msg) (ProfileModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -73,6 +80,9 @@ func (m ProfileModel) Update(msg tea.Msg) (ProfileModel, tea.Cmd) {
 	return m, nil
 }
 
+// View implements [tea.Model] — left pane is the profile list; the
+// right pane is a blurb + "would install N components" hint for the
+// highlighted profile.
 func (m ProfileModel) View() tea.View {
 	header := m.theme.Title.Render("omc — profile") + " " + m.theme.Subtle.Render("(pick a starting point)")
 	footer := m.theme.Hint.Render("[j/k] move  ·  [1/2/3] quick pick  ·  [enter] choose  ·  [q] quit")

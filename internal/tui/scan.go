@@ -28,6 +28,9 @@ type ScanModel struct {
 	err       error
 }
 
+// NewScan constructs a fresh ScanModel pointed at the supplied repo
+// root. Detection is kicked off by the root model when the user
+// transitions onto this screen.
 func NewScan(theme Theme, repoRoot string) ScanModel {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
@@ -49,10 +52,15 @@ func (m ScanModel) Reset() ScanModel {
 	return m
 }
 
+// Init implements [tea.Model] — starts the loading-spinner tick so the
+// screen has motion while the LLM call is in flight.
 func (m ScanModel) Init() tea.Cmd {
 	return m.spinner.Tick
 }
 
+// Update implements [tea.Model] — handles spinner ticks, the inbound
+// stackMsg, and the keyboard bindings ([enter] continue, [r] re-detect,
+// [b] back, [q] quit).
 func (m ScanModel) Update(msg tea.Msg) (ScanModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -92,6 +100,8 @@ func (m ScanModel) Update(msg tea.Msg) (ScanModel, tea.Cmd) {
 	return m, nil
 }
 
+// View implements [tea.Model] — spinner while loading, then the Stack
+// rendered as a key:value summary with a cache-status one-liner.
 func (m ScanModel) View() tea.View {
 	header := m.theme.Title.Render("omc — scan") + " " + m.theme.Subtle.Render("("+m.repoRoot+")")
 	footer := m.theme.Hint.Render("[enter] continue  ·  [r] re-detect  ·  [b] back  ·  [q] quit")

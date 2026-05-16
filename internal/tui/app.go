@@ -171,7 +171,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case catalogReadyMsg:
 		if msg.Err == nil {
 			m.state.Catalog = msg.Catalog
-			if m.state.Selected == nil || len(m.state.Selected) == 0 {
+			if len(m.state.Selected) == 0 {
 				m.state.Selected = msg.Selected
 			}
 		}

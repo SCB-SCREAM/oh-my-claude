@@ -27,6 +27,9 @@ type PreviewModel struct {
 	vp viewport.Model
 }
 
+// NewPreview constructs a fresh PreviewModel with an empty skip set.
+// The plan is supplied later via planReadyMsg from the root's
+// buildPlanCmd.
 func NewPreview(theme Theme) PreviewModel {
 	vp := viewport.New()
 	return PreviewModel{
@@ -37,8 +40,13 @@ func NewPreview(theme Theme) PreviewModel {
 	}
 }
 
+// Init implements [tea.Model] — the screen waits for planReadyMsg
+// before doing any work.
 func (m PreviewModel) Init() tea.Cmd { return nil }
 
+// Update implements [tea.Model] — cursor movement, [s] toggles skip on
+// the highlighted file, [enter] commits the skip set and advances to
+// the apply screen, all other keys are forwarded to the diff viewport.
 func (m PreviewModel) Update(msg tea.Msg) (PreviewModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -98,6 +106,8 @@ func (m PreviewModel) Update(msg tea.Msg) (PreviewModel, tea.Cmd) {
 	return m, nil
 }
 
+// View implements [tea.Model] — two-pane layout: file list on the left,
+// rendered diff for the highlighted entry on the right.
 func (m PreviewModel) View() tea.View {
 	header := m.theme.Title.Render("omc — preview") + " " +
 		m.theme.Subtle.Render("(review changes before applying)")

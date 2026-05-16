@@ -21,6 +21,8 @@ type DoneModel struct {
 	err     error
 }
 
+// NewDone constructs a fresh DoneModel. Results are attached later via
+// WithResults when root switches to this screen.
 func NewDone(theme Theme) DoneModel {
 	return DoneModel{theme: theme}
 }
@@ -34,8 +36,10 @@ func (m DoneModel) WithResults(p profile.Name, results []apply.WriteResult, err 
 	return m
 }
 
+// Init implements [tea.Model] — the done screen is purely presentational.
 func (m DoneModel) Init() tea.Cmd { return nil }
 
+// Update implements [tea.Model] — any of [enter|esc|q] quits the program.
 func (m DoneModel) Update(msg tea.Msg) (DoneModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -49,6 +53,8 @@ func (m DoneModel) Update(msg tea.Msg) (DoneModel, tea.Cmd) {
 	return m, nil
 }
 
+// View implements [tea.Model] — summary, banner, next-steps list,
+// centred via lipgloss.Place.
 func (m DoneModel) View() tea.View {
 	header := m.theme.Title.Render("omc — done")
 

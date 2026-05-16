@@ -26,6 +26,9 @@ type ApplyModel struct {
 	bar progress.Model
 }
 
+// NewApply constructs a fresh ApplyModel themed with the supplied
+// palette. The internal progress bar is initialised with default
+// dimensions and resized on the first WindowSizeMsg.
 func NewApply(theme Theme) ApplyModel {
 	bar := progress.New()
 	return ApplyModel{theme: theme, bar: bar}
@@ -40,8 +43,14 @@ func (m ApplyModel) WithPlan(plan *apply.Plan) ApplyModel {
 	return m
 }
 
+// Init implements [tea.Model]. The apply screen waits for writeDoneMsgs
+// from the root-owned apply tea.Cmd, so it has no work to schedule on
+// activation.
 func (m ApplyModel) Init() tea.Cmd { return nil }
 
+// Update implements [tea.Model] — handles per-file progress ticks,
+// terminal resizes, progress-bar frame messages, and the [enter] →
+// done-screen transition.
 func (m ApplyModel) Update(msg tea.Msg) (ApplyModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -85,6 +94,8 @@ func (m ApplyModel) Update(msg tea.Msg) (ApplyModel, tea.Cmd) {
 	return m, nil
 }
 
+// View implements [tea.Model] — header + progress bar + the running
+// per-file result list + footer hint.
 func (m ApplyModel) View() tea.View {
 	header := m.theme.Title.Render("omc — apply") + " " +
 		m.theme.Subtle.Render("(M4 simulates — no real writes)")
