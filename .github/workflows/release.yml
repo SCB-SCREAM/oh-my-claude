@@ -69,7 +69,7 @@ jobs:
       - name: Checkout tag
         run: git checkout "${{ steps.tag.outputs.tag }}"
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
           cache: true
