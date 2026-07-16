@@ -7,7 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.6
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260511125431-fe5d686e0c99
-	github.com/mattn/go-isatty v0.0.20
+	github.com/mattn/go-isatty v0.0.23
 	github.com/spf13/cobra v1.10.2
 )
 
